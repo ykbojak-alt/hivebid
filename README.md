@@ -77,6 +77,10 @@ exercised on-chain. Evidence bundle: `docs/HIVEBID_SUBMISSION_EVIDENCE.md`.
   scoring (40/40/20) → award → settle → reputation growth, with annotated
   on-chain numbers and narration. **`docs/demo/nexus-demo-voiced-final.mp4`**
   (99s, 1080p, H.264+AAC). Poster: `docs/demo/poster.jpg`.
+- **Vertical cut** — same auction re-cut for mobile/X portrait:
+  **`docs/demo/nexus-demo-vertical.mp4`** (99s, 1080×1920).
+- **Bonus ambience** — A.L.I.C.E. illustration reel used as the demo
+  backdrop: **`docs/demo/alice-slideshow-v2.mp4`** (49s, 1080p, silent).
 - **Interactive deck** (live view of contract state):
   <https://ykbojak-alt.github.io/nexus-aios/demo/>
 - Live UI mod source: `nexus-deck` `hivebid-deck` tab — polls `get_lot`,
@@ -115,6 +119,14 @@ node edge-paths.js        # rework cap, late submit, no-show slash, cancel
 #    near deploy hivebid_market.wasm hivebid-yksunder.testnet
 #    near call hivebid-yksunder.testnet new '{}' --accountId <you>.testnet
 ```
+
+## What's inside
+
+- `contracts/hivebid_market/` — Rust/Near contract, tests, wasm prepare harness, and integration scripts.
+- `README.md` — judge-facing summary, live auction numbers, quickstart, evidence index.
+- `docs/` — Judge FAQ, judge walkthrough, Deck mod inventory, RPC notes, reproduction guide, evidence pack.
+- `docs/demo/` — recorded auction videos (landscape + vertical, 99 s) and poster.
+- `wasm/` — pinned canonical builds and historical candidates.
 
 ## Repository layout
 
