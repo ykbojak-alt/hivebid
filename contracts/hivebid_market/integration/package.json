@@ -1,0 +1,12 @@
+{
+  "name": "hivebid-market-integration",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node happy-path.js"
+  },
+  "dependencies": {
+    "near-workspaces": "^4.0.0"
+  }
+}
