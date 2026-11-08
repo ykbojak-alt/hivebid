@@ -176,6 +176,8 @@ signed.
 
 - `docs/HIVEBID_SUBMISSION_EVIDENCE.md` — commits, tx hashes, auction records,
   ratings before/after, static-vs-live honesty table
+`docs/INTENTS.md`                why native escrow now and NEAR Intents as future work
+`RULES.md`                    judge-facing avalanche/rules summary
 - `auction-evidence.json` (temp artifact, mirrored in ecosystem repo) —
   `get_bid_scores` output, 8 tx hashes for lot `roy-1794159209212`
 
