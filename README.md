@@ -73,6 +73,8 @@ exercised on-chain. Evidence bundle: `docs/HIVEBID_SUBMISSION_EVIDENCE.md`.
 
 ## Demo
 
+![Live bids in the NEXUS Deck](docs/demo/live-bids.gif)
+
 - **Recorded auction** — the flagship artifact: intro → live bidding → on-chain
   scoring (40/40/20) → award → settle → reputation growth, with annotated
   on-chain numbers and narration. **`docs/demo/nexus-demo-voiced-final.mp4`**
