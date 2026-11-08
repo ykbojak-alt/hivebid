@@ -108,7 +108,7 @@ exercised on-chain. Evidence bundle: `docs/HIVEBID_SUBMISSION_EVIDENCE.md`.
 ## Quickstart (do X → see Y)
 
 ```sh
-# 1. Tests — expect 84 checks green
+# 1. Tests — expect 83 checks green
 cd contracts/hivebid_market && cargo test --lib
 
 # 2. Build the wasm artifact
