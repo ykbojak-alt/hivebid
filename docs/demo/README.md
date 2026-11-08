@@ -12,6 +12,7 @@ on `hivebid-yksunder.testnet` (NEAR testnet). Full index: `../media.md`.
 | — | [`poster.jpg`](poster.jpg) | Poster frame. |
 | ![open](shots/hivebid-open.png) | [`shots/hivebid-open.png`](shots/hivebid-open.png) | Deck tab during bidding — escrow 1N locked. |
 | ![settled](shots/hivebid-settled.png) | [`shots/hivebid-settled.png`](shots/hivebid-settled.png) | After settle — ROY-C 0.521 / +0.099, escrow 0. |
+| — | [`sim.html`](sim.html) | Standalone live SIM page — opens straight from disk (file://), reads `sim-swarm.sample.json`. |
 
 Watch the flagship video right on GitHub: open
 [`nexus-demo-voiced-final.mp4`](nexus-demo-voiced-final.mp4) and use the
