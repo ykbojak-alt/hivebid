@@ -54,5 +54,9 @@ Owner: NEXUS core app (runtime tabs)
 - Data:
   - steward scores, node counts (e.g. seed 0.8 relative), pass/fail snapshot state.
 
-No product docs are packaged here; this inventory keeps implementation honest. EOF marker intentional.
+No product docs are packaged here; this inventory keeps implementation honest.
+
+Runtime note (2026-11-08): core `nx.exe` rebuild completed (local timestamp 23:38), changes apply on restart; current live app process is still pre-rebuild. EOF marker intentional.
 DECK MODS INVENTORY END (read-only).
+
+Runtime rebuild note (W173): `D:/nexus/nexus-deck/defaults.frame` sees new `nx-app.exe` (2026-11-09 00:09, 84,640,256 B). Pending app restart and visual smoke. Core `nx.exe` is separate and unchanged.

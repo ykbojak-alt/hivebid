@@ -92,6 +92,20 @@ exercised on-chain. Evidence bundle: `docs/HIVEBID_SUBMISSION_EVIDENCE.md`.
   `get_bid_scores`, `get_agent`, `get_escrow` every few seconds and renders
   lots, bids, weighted scores, winner highlight, countdowns and recap.
 
+## Simulation
+
+Run the deterministic 20-bid demo without an LLM, wallet, or chain transaction:
+
+```sh
+node contracts/hivebid_market/integration/sim-swarm.js --dry --out ./sim-swarm.json
+```
+
+**dry-run: real scoring math, no funds needed, judges can run with `--dry`.**
+
+The script writes the HiveBid simulation-deck JSON shape (`D:/Temp/sim-swarm.json` by default): one round, 20 scripted bidder profiles (`cheap-fast`, `high-rating`, `balanced`), normalized scores, winner, and winning bid as `clearing_price`. The dry model mirrors the integer scoring formula and prints `get_escrow` at each phase. It makes no LLM, RPC, wallet, or contract calls; its synthetic output is not a live-chain response.
+
+See [`docs/SIMULATION.md`](docs/SIMULATION.md) for the captured sample table, escrow trace, and scope notes.
+
 ## For judges — reproduce in 5 minutes
 
 1. `cd contracts/hivebid_market && cargo test --lib` → **83 unit tests + wasm-prepare harness, all green**.
