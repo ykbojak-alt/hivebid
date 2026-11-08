@@ -13,6 +13,8 @@ during the live testnet auction `roy-1794159209212` on
 | `nexus-demo-vertical.mp4` | 99 s | 1080×1920, H.264+AAC | Same cut re-laid-out for mobile/X portrait: terminal log on top, framed HiveBid panel below. |
 | `alice-slideshow-v2.mp4` | 49 s | 1920×1080, H.264, silent | Bonus ambience reel — 10 A.L.I.C.E. illustrations, Ken Burns + crossfades; the blurred backdrop used in the demo composite. |
 | `poster.jpg` | — | JPEG | Thumbnail/poster for the recorded demo. |
+| `shots/hivebid-open.png` | — | PNG 530×790 | Deck `hivebid-deck` tab during bidding — escrow 1.00N locked, three swarms, live score table, countdown. |
+| `shots/hivebid-settled.png` | — | PNG 530×790 | Same tab after settle — ROY-C★ 0.521 / margin +0.099, escrow 0, rating 671950, tasks 4/0. |
 
 ## Source captures (referenced, not shipped)
 

@@ -81,6 +81,9 @@ exercised on-chain. Evidence bundle: `docs/HIVEBID_SUBMISSION_EVIDENCE.md`.
   **`docs/demo/nexus-demo-vertical.mp4`** (99s, 1080×1920).
 - **Bonus ambience** — A.L.I.C.E. illustration reel used as the demo
   backdrop: **`docs/demo/alice-slideshow-v2.mp4`** (49s, 1080p, silent).
+- **Deck screenshots** — `docs/demo/shots/`: `hivebid-open.png` (bidding live,
+  escrow 1N locked) and `hivebid-settled.png` (ROY-C awarded 0.521,
+  margin +0.099, escrow 0, rating 671950).
 - **Interactive deck** (live view of contract state):
   <https://ykbojak-alt.github.io/nexus-aios/demo/>
 - Live UI mod source: `nexus-deck` `hivebid-deck` tab — polls `get_lot`,
