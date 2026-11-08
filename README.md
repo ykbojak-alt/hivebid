@@ -128,6 +128,9 @@ contracts/hivebid_market/
 HIVEBID_SPEC.md         protocol spec (RFC ROY_MARKET_PROTOCOL)
 HIVEBID_DEPLOY_RUNBOOK.md  deploy + verification runbook
 SUBMISSION_DRAFT.md     hackathon submission notes (draft)
+docs/JUDGE_FAQ.md          judge-facing Q&A and honest scope answers
+docs/DECK_MODS.md          Deck tab and data-source inventory
+docs/JUDGE_WALKTHROUGH.md  three-minute judging script using live chain facts
 ```
 
 ## WASM artifacts
