@@ -209,8 +209,8 @@ async function fire(kind, fn, args) {
   const okB = await checkBonds(kind);
   if (!okA || !okB) {
     const dumped = await fullDump();
-    fs.writeFileSync('/root/merc-fuzz357-fail-dump.json', dumped);
-    console.error('FUZZ_FAIL dump -> /root/merc-fuzz357-fail-dump.json');
+    fs.writeFileSync('./fuzz-fail-dump.json', dumped);
+    console.error('FUZZ_FAIL dump -> ./fuzz-fail-dump.json');
     console.error(dumped);
     process.exit(1);
   }

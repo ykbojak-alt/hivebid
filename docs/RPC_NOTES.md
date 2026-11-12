@@ -5,7 +5,6 @@
   - Read-only methods:
     - `query` (`call_function`, `view_account`, `view_code`) for contract state
     - `EXPERIMENTAL_tx_status`
-- **dRPC=tfair public fallback:** `https:// near-rpc.testnet.fastnear.com`
 - `view_account` returns deployed account + `code_hash`
 - Contract calls should use `finality: final`
 

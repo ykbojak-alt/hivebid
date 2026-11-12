@@ -1,0 +1,102 @@
+{
+  "schema": "auction-evidence/1",
+  "generated_at": "2026-11-08T17:37:15.706Z",
+  "lot_id": "roy-1794159209212",
+  "contract": "hivebid-yksunder.testnet",
+  "rpc": "https://rpc.testnet.fastnear.com",
+  "onchain_bid_scores": [
+    {
+      "agent": "hivebid-agent-yks.testnet",
+      "price": 9e+23,
+      "eta_ms": 1794159389212,
+      "f_price": 100000,
+      "f_rating": 476000,
+      "f_eta": 601232,
+      "score": 350646
+    },
+    {
+      "agent": "roy-b.hivebid-manager-yks.testnet",
+      "price": 7.5e+23,
+      "eta_ms": 1794159389212,
+      "f_price": 250000,
+      "f_rating": 500000,
+      "f_eta": 601232,
+      "score": 420246
+    },
+    {
+      "agent": "roy-c.hivebid-manager-yks.testnet",
+      "price": 6e+23,
+      "eta_ms": 1794159389212,
+      "f_price": 400000,
+      "f_rating": 598257,
+      "f_eta": 601232,
+      "score": 519548
+    }
+  ],
+  "lot": {
+    "lot_id": "roy-1794159209212",
+    "manager": "hivebid-manager-yks.testnet",
+    "task_hash": "T:efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",
+    "budget": 1e+24,
+    "bid_deadline_ms": 1794159329212,
+    "work_deadline_ms": 1794159449212,
+    "verify_deadline_ms": 1794159689212,
+    "status": "Completed",
+    "bids": [
+      {
+        "agent": "hivebid-agent-yks.testnet",
+        "price": 9e+23,
+        "eta_ms": 1794159389212,
+        "ts_ms": 1794159214423,
+        "signature": "roy-a"
+      },
+      {
+        "agent": "roy-b.hivebid-manager-yks.testnet",
+        "price": 7.5e+23,
+        "eta_ms": 1794159389212,
+        "ts_ms": 1794159216831,
+        "signature": "roy-b"
+      },
+      {
+        "agent": "roy-c.hivebid-manager-yks.testnet",
+        "price": 6e+23,
+        "eta_ms": 1794159389212,
+        "ts_ms": 1794159219277,
+        "signature": "roy-c"
+      }
+    ],
+    "winner": "roy-c.hivebid-manager-yks.testnet",
+    "winning_price": 6e+23,
+    "payout": {
+      "executor": 6e+23,
+      "manager": 4e+23,
+      "fee": 0
+    },
+    "submission": {
+      "work_hash": "W:7777777777777777777777777777777777777777777777777777777777777777",
+      "attempt": 1,
+      "ts_ms": 1794159350809
+    },
+    "rework_count": 0,
+    "opened_ts_ms": 1794159210773,
+    "award_ts_ms": 1794159349417,
+    "settle_ts_ms": 1794159352636
+  },
+  "transactions": {
+    "create_task": "FWEpfWwk1idD5mZCMueXL1FTESzQoP6KvDWC7RH7dXBR",
+    "bid_roy_a": "FT6twF3CFd1pq42vYm9gQigBAVZKc9kSYMEuv8iGMYS7",
+    "bid_roy_b": "9vfYKpVw5UrpuU3s6YunP8kDXzfUWz63kXRuG8wFg8T8",
+    "bid_roy_c": "22yqBrYaoY9RY6zC9TvX28Z1wH4TTM4DyP4e6wjhH7cB",
+    "close_bidding": "64iDZXrJcsfz4W97Tk4NERaEepRuypFGtvR2CjEGoU6J",
+    "award_best": "3PMu3yLnu58TdvLhZt9yySiVBwri9XnsRpCdVF4hpsLx",
+    "submit_work": "KJF8eoS553EgVUxUep3MCDkTLBwpuMXnF8HQ8mhAGdu",
+    "accept_work": "6R88SqwSFaD7hET1ZLHS2e6A1DxjFxb57BkY95Mx4CHB"
+  },
+  "roy_c": {
+    "rating_before": 635500,
+    "rating_after": 671950,
+    "stake_after": "1e+24",
+    "tasks_completed_after": 4,
+    "tasks_failed_after": 0
+  }
+}

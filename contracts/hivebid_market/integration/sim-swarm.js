@@ -22,7 +22,7 @@ const LOT_ID = 'LOT-SIM-001';
 
 function parseArgs(argv) {
   let dry = false;
-  let output = process.env.HIVEBID_SIM_OUTPUT || 'D:/Temp/sim-swarm.json';
+  let output = process.env.HIVEBID_SIM_OUTPUT || 'sim-swarm.json';
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--dry') {

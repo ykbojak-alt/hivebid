@@ -16,5 +16,6 @@ on `hivebid-yksunder.testnet` (NEAR testnet). Full index: `../media.md`.
 
 Watch the flagship video right on GitHub: open
 [`nexus-demo-voiced-final.mp4`](nexus-demo-voiced-final.mp4) and use the
-built-in player. The interactive page reading the live contract:
-<https://ykbojak-alt.github.io/nexus-aios/demo/>
+built-in player. The interactive page with the demo, the read-only chain calls
+and the offline simulation:
+<https://ykbojak-alt.github.io/hivebid/>
