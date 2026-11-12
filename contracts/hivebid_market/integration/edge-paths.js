@@ -58,10 +58,12 @@ async function makeLot(market, manager, agent, lotId, opts) {
     work_deadline_ms: d.wd,
     verify_deadline_ms: d.vd,
   }, { attachedDeposit: NEAR.parse(`${BUDGET} N`) });
-  // u128 price must be a literal JSON integer (a JS object/BN or quoted
-  // string fails u128 deserialization → WebAssembly trap).
-  const bidArgs = `{"lot_id":"${lotId}","price":${NEAR.parse(`${PRICE} N`).toString()},"eta_ms":${opts.wdIn},"signature":"edge-sig"}`;
-  await agent.callRaw(market.accountId, 'submit_bid', Buffer.from(bidArgs), {});
+  await agent.call(market, 'submit_bid', {
+    lot_id: lotId,
+    price: NEAR.parse(`${PRICE} N`),
+    eta_ms: opts.wdIn,
+    signature: 'edge-sig',
+  }, {});
   await waitPast(d.bid, 'bid_deadline');
   await manager.call(market, 'close_bidding', { lot_id: lotId }, {});
   await manager.call(market, 'award_best', { lot_id: lotId }, {});
@@ -82,7 +84,7 @@ async function main() {
     console.log('setup OK (payable register_agent accepted 10 N stake)');
 
     // ---------- S1: NO_SHOW + HB-M19 gate ----------
-    const s1 = await makeLot(market, manager, alice, 'edge-noshow', { bidIn: 6000, wdIn: 20000, vdIn: 50000 });
+    const s1 = await makeLot(market, manager, alice, 'edge-noshow', { bidIn: 1500, wdIn: 4000, vdIn: 16000 });
     await waitPast(s1.wd, 'S1 work_deadline'); // wd < now < vd (vd margin 12 s)
 
     // HB-M19: stranger in (wd, vd) is REJECTED — P12 window belongs to
@@ -104,7 +106,7 @@ async function main() {
     console.log('S1 NO_SHOW OK — Failed, escrow 0, stake slashed 50%, burned == slash');
 
     // ---------- S2: SUBMITTED_LATE → accept_work_late ----------
-    const s2 = await makeLot(market, manager, alice, 'edge-late', { bidIn: 6000, wdIn: 20000, vdIn: 50000 });
+    const s2 = await makeLot(market, manager, alice, 'edge-late', { bidIn: 1500, wdIn: 4000, vdIn: 24000 });
     // Strict on-time path is closed after wd:
     await waitPast(s2.wd, 'S2 work_deadline');
     await expectFail(
@@ -119,7 +121,7 @@ async function main() {
     console.log('S2 P12–P13 OK — SubmittedLate → Completed via accept_work_late');
 
     // ---------- S3: SUBMITTED_LATE → void_late crank (anyone after vd) ----------
-    const s3 = await makeLot(market, manager, alice, 'edge-void', { bidIn: 6000, wdIn: 20000, vdIn: 50000 });
+    const s3 = await makeLot(market, manager, alice, 'edge-void', { bidIn: 1500, wdIn: 4000, vdIn: 14000 });
     await waitPast(s3.wd, 'S3 work_deadline');
     await alice.call(market, 'late_submit_work', { lot_id: 'edge-void', work_hash: 'W:late2' }, {});
     // Manager silent; stranger can only act after verify_deadline:

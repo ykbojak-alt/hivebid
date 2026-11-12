@@ -2,7 +2,7 @@
 
 1. Clone `github.com/ykbojak-alt/hivebid`.
 2. `cd contracts/hivebid_market && cargo test --lib`
-   - expected: `83 lib tests + 1 prepare_wasm check, all green`
+   - expected: `100 lib tests + 1 prepare_wasm check, all green`
 3. Build:
    - `AWS_LC_SYS_NO_ASM=1 cargo build --target wasm32-unknown-unknown --release`
 4. Run integration:
@@ -19,8 +19,9 @@
      - `get_agent` → ratings `440000 / 500000 / 671950`
      - `get_lot` → status `Completed`, escrow 0
    - the raw response of the first call is committed as `auction-evidence.json`
-   - in this source tree (one revision behind the deployment) the same numbers
-     are reproducible from `get_lot` + `get_rating_eff`
+   - the artifact rebuilt in step 3 must hash to
+     `b545b8adb25b5b92b2233d32ae5e6c4f026852c8ceae7b5b074331afb8efb284`
+     (468,209 B) — the same artifact that is live on testnet
 7. Watch `docs/demo/nexus-demo-voiced-final.mp4` (99 s).
 8. Read:
    - `docs/JUDGE_FAQ.md`

@@ -21,9 +21,6 @@ async function main() {
     const root = worker.rootAccount;
     const manager = await root.devCreateAccount('manager');
     const alice = await root.devCreateAccount('alice');
-    // Dev accounts start with 100N; add escrow + gas headroom.
-    await root.transfer(manager.accountId, NEAR.parse('1000 N'));
-    await root.transfer(alice.accountId, NEAR.parse('500 N'));
 
     // Deploy the wasm contract under a subaccount and init.
     const market = await root.createSubAccount('market');
@@ -34,7 +31,7 @@ async function main() {
     // 1. register_agent (stake 10N)
     await alice.call(market, 'register_agent', {}, { attachedDeposit: NEAR.parse('10 N') });
     let rec = await market.view('get_agent', { account: alice.accountId });
-    assert(rec && rec.stake === Number(NEAR.parse('10 N').toString()), 'agent stake should be 10N');
+    assert(rec && String(rec.stake) === NEAR.parse('10 N'), 'agent stake should be 10N');
     console.log('register_agent OK, stake =', rec.stake);
 
     // 2. create_task (escrow deposit = budget)
@@ -44,21 +41,24 @@ async function main() {
     await manager.call(market, 'create_task', {
       lot_id: lotId,
       task_hash: taskHash,
-      bid_deadline_ms: now_ms + 6000,
+      bid_deadline_ms: now_ms + 2000,
       work_deadline_ms: now_ms + 60000,
       verify_deadline_ms: now_ms + 120000,
     }, { attachedDeposit: NEAR.parse(`${BUDGET} N`) });
 
-    assert(await market.view('get_escrow') === Number(NEAR.parse(`${BUDGET} N`).toString()),
+    assert(String(await market.view('get_escrow')) === NEAR.parse(`${BUDGET} N`),
       'escrow should hold budget after create_task');
 
     // 3. submit_bid (цена 40N ≤ бюджет 100N)
-    // u128 price must be a literal JSON integer (JS number loses precision > 2^53).
-    const bidArgs = `{"lot_id":"${lotId}","price":${NEAR.parse(`${PRICE} N`).toString()},"eta_ms":30000,"signature":"demo-signature"}`;
-    await alice.callRaw(market.accountId, 'submit_bid', Buffer.from(bidArgs), {});
+    await alice.call(market, 'submit_bid', {
+      lot_id: lotId,
+      price: NEAR.parse(`${PRICE} N`),
+      eta_ms: 30000,
+      signature: 'demo-signature',
+    }, {});
 
     // 4. close_bidding (после bid_deadline)
-    await new Promise(r => setTimeout(r, 7000));
+    await new Promise(r => setTimeout(r, 2500));
     await manager.call(market, 'close_bidding', { lot_id: lotId }, {});
 
     const winner = await market.view('select_winner', { lot_id: lotId });
@@ -70,7 +70,7 @@ async function main() {
     let lot = await market.view('get_lot', { lot_id: lotId });
     assert(lot.status === 'Awarded', 'lot should be Awarded, got ' + lot.status);
     assert(lot.winner === alice.accountId, 'winner should be alice');
-    assert(lot.payout.executor === Number(NEAR.parse(`${PRICE} N`).toString()), 'payout.executor = 40N');
+    assert(String(lot.payout.executor) === NEAR.parse(`${PRICE} N`), 'payout.executor = 40N');
     console.log('award_best OK, payout =', JSON.stringify(lot.payout));
 
     // 6. submit_work (winner)

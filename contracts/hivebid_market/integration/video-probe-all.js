@@ -6,7 +6,7 @@ const fs = require("fs");
 const RPC = "http://127.0.0.1:31915";
 const KEY_FILE = "/tmp/sandbox/2ff4ce10-2539-44d0-822e-b62be2748772/validator_key.json";
 const ROOT_KEY = JSON.parse(fs.readFileSync(KEY_FILE));
-const KEYS_DB = "/root/nexus/contracts/hivebid_market/integration/video-keys.json";
+const KEYS_DB = "../integration/video-keys.json";
 
 (async () => {
   const keysDb = JSON.parse(fs.readFileSync(KEYS_DB, "utf8"));

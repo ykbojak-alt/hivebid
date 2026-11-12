@@ -12,11 +12,11 @@
 //   FINAL   views: escrow=0, treasury/burned, ratings ledger, lot statuses
 //
 // Run (на sage-pl, AVX2+):
-//   cd /root/nexus/contracts/hivebid_market/integration
+//   cd ../integration
 //   HIVEBID_WASM=../wasm/hivebid_market.wasm \
-//   NEAR_SANDBOX_BIN_PATH=/root/sandbox-neard \
-//   NEAR_SANDBOX_BINARY_PATH=/root/sandbox-neard/near-sandbox \
-//   NEAR_SANDBOX_BIN=/root/sandbox-neard/near-sandbox \
+//   NEAR_SANDBOX_BIN_PATH=/tmp/hivebid-sandbox-neard \
+//   NEAR_SANDBOX_BINARY_PATH=/tmp/hivebid-sandbox-neard/near-sandbox \
+//   NEAR_SANDBOX_BIN=/tmp/hivebid-sandbox-neard/near-sandbox \
 //   node demo-rehearsal-403.js
 const fs = require('fs');
 const path = require('path');

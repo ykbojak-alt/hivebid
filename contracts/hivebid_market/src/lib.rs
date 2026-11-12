@@ -102,6 +102,18 @@ pub struct Bid {
     pub signature: String,
 }
 
+/// Декомпозиция score для read-only демо-панели (все факторы и score scaled до SCALE).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BidScore {
+    pub agent: AccountId,
+    pub price: u128,
+    pub eta_ms: u64,
+    pub f_price: u128,
+    pub f_rating: u128,
+    pub f_eta: u128,
+    pub score: u128,
+}
+
 #[derive(BorshDeserialize, BorshSerialize, Clone, Serialize, Deserialize)]
 pub struct Submission {
     pub work_hash: String,
@@ -382,7 +394,8 @@ impl Contract {
     }
 
     /// submit_bid (P2): только OPEN, до дедлайна, зарегистрированный агент,
-    /// 0 < price ≤ budget, eta_ms ≤ work_deadline.
+    /// 0 < price ≤ budget, eta_ms < work_deadline (HB-S15: обещание ровно на
+    /// границе невыполнимо он-тайм — сдача требует `now < wd`).
     pub fn submit_bid(&mut self, lot_id: String, price: u128, eta_ms: u64, signature: String) {
         let agent = env::predecessor_account_id();
         // HB-M11: не просто «зарегистрирован» — стейк ≥ min_stake (P2);
@@ -402,7 +415,7 @@ impl Contract {
         assert!(lot.status == LotStatus::Open, "lot not open");
         assert!(now < lot.bid_deadline_ms, "bidding closed");
         assert!(price > 0 && price <= lot.budget, "price out of bounds");
-        assert!(eta_ms <= lot.work_deadline_ms, "eta_ms must be ≤ work deadline");
+        assert!(eta_ms < lot.work_deadline_ms, "eta_ms must be before work deadline");
         // HB-M03: self-bid — менеджер не исполняет свою же задачу
         // (эскроу возвращался бы ему же + фарм рейтинга COMPLETED).
         assert!(agent != lot.manager, "self-bid not allowed");
@@ -462,7 +475,14 @@ impl Contract {
         );
         // HB-M14: награждение после work_deadline → гарантированный слэш
         // через мгновенный mark_no_show.
-        assert!(now <= lot.work_deadline_ms, "work deadline already passed");
+        assert!(now < lot.work_deadline_ms, "work deadline already passed");
+        // HB-M03/G-1 (HERETIC #405 §5): менеджер не может выиграть собственный
+        // лот. submit_bid уже не пускает его в bid-набор, поэтому этот гейт —
+        // инвариант (defense-in-depth), а не единственная защита: award
+        // обязан отказывать и в том случае, если набор когда-нибудь будет
+        // испорчен. Проверяется до поиска bid, чтобы сообщение не протекало
+        // состав набора.
+        assert!(winner != lot.manager, "self-dealing: manager cannot win own lot");
         let bid = lot
             .bids
             .iter()
@@ -527,7 +547,7 @@ impl Contract {
         let caller = env::predecessor_account_id();
         let now = self._now_ms();
         let mut lot = self.lots.get(&lot_id).expect("no such lot").clone();
-        let timeout_rescue = now > lot.work_deadline_ms;
+        let timeout_rescue = now >= lot.work_deadline_ms;
         assert!(
             caller == lot.manager || caller == self.owner || timeout_rescue,
             "cancel: manager/owner, or anyone after work deadline"
@@ -691,12 +711,23 @@ impl Contract {
         );
         // HB-S06: `>=` закрывает 1-ms мёртвую зону на границе — submit_work
         // уже запрещён (`now < wd`), раньше и no_show не имел ребра.
+        // HB-W31 (6.2/6.3): из Rework исполнитель уже сдавал работу —
+        // а) слэш выключается (rework-grind реджектов менеджером не должен
+        //    конвертироваться в слэш честного стейка);
+        // б) после work_deadline у агента живого хода нет (submit_work
+        //    требует now < wd, late_submit — только Awarded), значит окно
+        //    (wd, vd) под Rework не защищает никакой гонки — crank открыт
+        //    любому сразу после wd, что разблокирует и hold-up
+        //    settle_partial'ом: bond не может висеть вечно.
+        let was_rework = matches!(lot.status, LotStatus::Rework(_));
         assert!(now >= lot.work_deadline_ms, "work deadline not passed");
         // HB-M19: окно (wd, vd) принадлежит гонке manager↔winner (P11/P12);
         // третьи лица допускаются только после vd (комплементарно к
-        // late_submit `< vd` — мёртвой зоны нет).
+        // late_submit `< vd` — мёртвой зоны нет). Для Rework — любой после wd.
         assert!(
-            env::predecessor_account_id() == lot.manager || now >= lot.verify_deadline_ms,
+            env::predecessor_account_id() == lot.manager
+                || now >= lot.verify_deadline_ms
+                || was_rework,
             "no_show: manager until verify deadline, anyone after"
         );
         assert!(lot.submission.is_none(), "work was submitted");
@@ -712,8 +743,14 @@ impl Contract {
             // HB-S18 (дельта 7): слэш = замороженный bond этого лота
             // (50% стейка на момент award), не текущий stake×bps и не
             // живой min_stake — увод стейка не сжимает его (D6-5/D6-1).
-            let bond = self.lot_bonds.get(&lot_id).copied().unwrap_or(0);
-            let slash = bond.min(rec.stake);
+            // HB-W31 (6.2): слэш только при истинном no-show из Awarded —
+            // из Rework bond возвращается исполнителю целиком.
+            let slash = if was_rework {
+                0
+            } else {
+                let bond = self.lot_bonds.get(&lot_id).copied().unwrap_or(0);
+                bond.min(rec.stake)
+            };
             rec.stake = rec.stake.saturating_sub(slash);
             self.burned += slash;
             self.agents.insert(winner.clone(), rec);
@@ -721,24 +758,26 @@ impl Contract {
             self._apply_rating(winner, 0, 0, "NO_SHOW", now);
         }
         self.lots.insert(lot_id.clone(), lot);
-        env::log_str(&format!("HIVEBID no_show {} (slash)", lot_id));
+        env::log_str(&format!("HIVEBID no_show {}", lot_id));
     }
 
     // ------------------------------------------------------------------
     // Поздняя сдача (P12–P14, HB-S07 / G-7 / I-8)
     // ------------------------------------------------------------------
 
-    /// late_submit_work (P12): поздняя сдача после work_deadline — из
-    /// AWARDED в SUBMITTED_LATE; окно до verify_deadline (после него
-    /// void_late и так крэнкается любым). Гонка с mark_no_show решается
-    /// порядком вызовов — кто первый, тот переход и стоит.
+    /// late_submit_work (P12): поздняя сдача с work_deadline включительно
+    /// (HB-S15: `now >= wd`, комплементарно `now < wd` у submit_work —
+    /// миллисекундной дыры между двумя ветками нет) — из AWARDED в
+    /// SUBMITTED_LATE; окно до verify_deadline (после него void_late и так
+    /// крэнкается любым). Гонка с mark_no_show решается порядком вызовов —
+    /// кто первый, тот переход и стоит.
     pub fn late_submit_work(&mut self, lot_id: String, work_hash: String) {
         let agent = env::predecessor_account_id();
         let now = self._now_ms();
         let mut lot = self.lots.get(&lot_id).expect("no such lot").clone();
         assert!(lot.status == LotStatus::Awarded, "lot not awaiting work");
         assert_eq!(lot.winner.as_ref(), Some(&agent), "winner only");
-        assert!(now > lot.work_deadline_ms, "work deadline not passed");
+        assert!(now >= lot.work_deadline_ms, "work deadline not passed");
         assert!(
             now < lot.verify_deadline_ms,
             "verify deadline passed (void_late)"
@@ -757,8 +796,10 @@ impl Contract {
         env::log_str(&format!("HIVEBID late_submit {}", lot_id));
     }
 
-    /// accept_work_late (P13): manager принимает позднюю сдачу → COMPLETED
-    /// с безусловным штрафом скорости s = 0 (q_final = q·S_MIN).
+    /// accept_work_late (P13): manager принимает позднюю сдачу → COMPLETED.
+    /// рейтинг идёт через _apply_rating/_speed_factor (HB-S17), как он-тайм
+    /// путь; для просроченной сдачи кривая даёт s = 0, поэтому итог прежний:
+    /// q_final = q·S_MIN.
     pub fn accept_work_late(&mut self, lot_id: String) {
         let caller = env::predecessor_account_id();
         let now = self._now_ms();
@@ -774,14 +815,24 @@ impl Contract {
         if let Some(winner) = &lot.winner {
             let k = lot.rework_count as u128;
             let q = SCALE.saturating_sub(k * LAMBDA);
-            self._apply_rating(winner, q, 0, "COMPLETED", now);
+            // HB-S17: s берётся из той же кривой, что и он-тайм путь, —
+            // отдельная константа была бы вторым источником правды. Для
+            // просроченной сдачи кривая даёт ровно 0 (elapsed за окном ⇒
+            // late ≥ span ⇒ SCALE − span·SCALE/span), поэтому поведение не
+            // меняется. Это безопасно ровно потому, что award больше не
+            // возможен на самой границе (`now < wd` ⇒ window ≥ 1 мс): при
+            // window == 0 _speed_factor возвращает SCALE, а не 0.
+            let submit_ts = lot.submission.as_ref().map(|s| s.ts_ms).unwrap_or(now);
+            let s = self._speed_factor(&lot, submit_ts);
+            self._apply_rating(winner, q, s, "COMPLETED", now);
         }
         self.lots.insert(lot_id.clone(), lot);
         env::log_str(&format!("HIVEBID accept_late {}", lot_id));
     }
 
-    /// void_late (P14): позднюю сдачу аннулирует manager — либо ЛЮБОЙ после
-    /// verify_deadline (I-8: каждый лот имеет авто-терминал). → FAILED,
+    /// void_late (P14): позднюю сдачу аннулирует manager — либо ЛЮБОЙ с
+    /// verify_deadline (`now >= vd`, HB-S14 — тот же канон, что у accept_work
+    /// и mark_no_show; I-8: каждый лот имеет авто-терминал). → FAILED,
     /// весь бюджет менеджеру.
     pub fn void_late(&mut self, lot_id: String) {
         let caller = env::predecessor_account_id();
@@ -791,7 +842,7 @@ impl Contract {
             lot.status == LotStatus::SubmittedLate,
             "lot not late-submitted"
         );
-        let timeout = now > lot.verify_deadline_ms;
+        let timeout = now >= lot.verify_deadline_ms;
         assert!(
             caller == lot.manager || timeout,
             "manager only (or verify deadline passed)"
@@ -812,6 +863,31 @@ impl Contract {
     // ------------------------------------------------------------------
     // Views
     // ------------------------------------------------------------------
+
+    /// Факторы и итоговый score каждой ставки в порядке её подачи.
+    /// Значения факторов и score используют фиксированный масштаб SCALE;
+    /// для неизвестного lot_id возвращается пустой список.
+    pub fn get_bid_scores(&self, lot_id: String) -> Vec<BidScore> {
+        let Some(lot) = self.lots.get(&lot_id) else {
+            return Vec::new();
+        };
+        let now_ms = self._now_ms();
+        lot.bids
+            .iter()
+            .map(|bid| {
+                let (f_price, f_rating, f_eta) = self._score_factors(lot, bid, now_ms);
+                BidScore {
+                    agent: bid.agent.clone(),
+                    price: bid.price,
+                    eta_ms: bid.eta_ms,
+                    f_price,
+                    f_rating,
+                    f_eta,
+                    score: Self::_weighted_score(f_price, f_rating, f_eta),
+                }
+            })
+            .collect()
+    }
 
     pub fn get_lot(&self, lot_id: String) -> Option<Lot> {
         self.lots.get(&lot_id).cloned()
@@ -889,6 +965,11 @@ impl Contract {
 
     /// Счёт аналитика (5) для кандидата — scaled.
     fn _score(&self, lot: &Lot, bid: &Bid, now_ms: u64) -> u128 {
+        let (f_price, f_rating, f_eta) = self._score_factors(lot, bid, now_ms);
+        Self::_weighted_score(f_price, f_rating, f_eta)
+    }
+
+    fn _score_factors(&self, lot: &Lot, bid: &Bid, now_ms: u64) -> (u128, u128, u128) {
         let b = lot.budget;
         // f_price = 1 − P/B
         let f_price = if b == 0 { 0 } else { SCALE - bid.price * SCALE / b };
@@ -903,6 +984,10 @@ impl Contract {
             let num = lot.work_deadline_ms.saturating_sub(bid.eta_ms) as u128;
             (num * SCALE / denom as u128).min(SCALE)
         };
+        (f_price, f_rating, f_eta)
+    }
+
+    fn _weighted_score(f_price: u128, f_rating: u128, f_eta: u128) -> u128 {
         W_PRICE * f_price / SCALE
             + W_RATING * f_rating / SCALE
             + W_ETA * f_eta / SCALE
@@ -1105,6 +1190,98 @@ mod tests {
         as_ctx(manager, NearToken::from_yoctonear(0), ts(1500));
         contract.close_bidding(lot_id.to_string());
         contract.award_best(lot_id.to_string());
+    }
+
+    #[test]
+    fn get_bid_scores_exposes_factors_and_matches_award_best() {
+        let mut contract = setup();
+        assert!(contract.get_bid_scores("missing".into()).is_empty());
+        let manager = accounts(1);
+        let alice = accounts(2);
+        let bob = accounts(3);
+        let charlie = accounts(4);
+        for agent in [&alice, &bob, &charlie] {
+            register(&mut contract, agent);
+        }
+
+        // Завершённый лот поднимает эффективный рейтинг Боба с 500_000 до 512_500.
+        to_award(&mut contract, &manager, &bob, "training", PRICE_N);
+        as_ctx(&bob, NearToken::from_yoctonear(0), ts(2000));
+        contract.submit_work("training".into(), "W:training".into());
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(3000));
+        contract.accept_work("training".into());
+        assert_eq!(contract.get_rating_eff(&bob), 512_500);
+
+        let bid_deadline = BASE_MS + 5_000;
+        let work_deadline = BASE_MS + 24_000;
+        let verify_deadline = BASE_MS + 45_000;
+        as_ctx(&manager, NearToken::from_near(BUDGET_N), ts(4000));
+        contract.create_task(
+            "scored".into(),
+            task_hash(),
+            bid_deadline,
+            work_deadline,
+            verify_deadline,
+        );
+
+        for (agent, price_n, eta_ms, signature) in [
+            (&alice, 20, BASE_MS + 9_000, "alice"),
+            (&bob, 30, BASE_MS + 14_000, "bob"),
+            (&charlie, 40, BASE_MS + 19_000, "charlie"),
+        ] {
+            as_ctx(agent, NearToken::from_yoctonear(0), ts(4100));
+            contract.submit_bid(
+                "scored".into(),
+                NearToken::from_near(price_n).as_yoctonear(),
+                eta_ms,
+                signature.into(),
+            );
+        }
+
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(6000));
+        contract.close_bidding("scored".into());
+        let scores = contract.get_bid_scores("scored".into());
+
+        assert_eq!(scores.len(), 3);
+        assert_eq!(
+            (
+                scores[0].agent.clone(),
+                scores[0].f_price,
+                scores[0].f_rating,
+                scores[0].f_eta,
+                scores[0].score,
+            ),
+            (alice.clone(), 800_000, 500_000, 833_333, 686_666),
+        );
+        assert_eq!(
+            (
+                scores[1].agent.clone(),
+                scores[1].f_price,
+                scores[1].f_rating,
+                scores[1].f_eta,
+                scores[1].score,
+            ),
+            (bob.clone(), 700_000, 512_500, 555_555, 596_111),
+        );
+        assert_eq!(
+            (
+                scores[2].agent.clone(),
+                scores[2].f_price,
+                scores[2].f_rating,
+                scores[2].f_eta,
+                scores[2].score,
+            ),
+            (charlie, 600_000, 500_000, 277_777, 495_555),
+        );
+
+        let lot = contract.get_lot("scored".into()).unwrap();
+        let picked = contract
+            ._pick_best(&lot, BASE_MS + 6_000)
+            .unwrap()
+            .agent
+            .clone();
+        assert_eq!(picked, scores[0].agent);
+        assert_eq!(contract.award_best("scored".into()), picked);
     }
 
     // ---- Счасливый путь ------------------------------------------------
@@ -1598,6 +1775,150 @@ mod tests {
         assert_eq!(contract.get_agent(&alice).unwrap().stake, 0);
     }
 
+    // ---- #378(5): cleanup резерва на КАЖДОМ терминальном переходе --------
+    //
+    // HERETIC §4 («bonds растут неограниченно») по исходникам не
+    // подтверждается: lot_bonds снимается на всех терминалах, а нулевой
+    // остаток agent_bonds удаляется (см. _release_bond). Ниже — пины на уже
+    // существующее поведение, по одному на терминал: каждый падает, если
+    // убрать соответствующий вызов _release_bond (проверено мутацией).
+
+    /// TERMINAL reject_work → FAILED: резерв снят.
+    #[test]
+    fn hb_s18_bond_released_on_reject_terminal() {
+        let mut contract = setup();
+        let manager = accounts(1);
+        let alice = accounts(2);
+        register(&mut contract, &alice);
+        to_award(&mut contract, &manager, &alice, "L1", PRICE_N);
+        to_rework3(&mut contract, &manager, &alice, "L1");
+
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(3_000));
+        contract.reject_work("L1".into());
+
+        assert_eq!(
+            contract.get_lot("L1".into()).unwrap().status,
+            LotStatus::Failed
+        );
+        assert_eq!(contract.lot_bonds.get("L1"), None);
+        assert_eq!(contract.agent_bonds.get(&alice), None);
+    }
+
+    /// TERMINAL settle_partial → PARTIAL_SETTLED: резерв снят.
+    #[test]
+    fn hb_s18_bond_released_on_settle_partial() {
+        let mut contract = setup();
+        let manager = accounts(1);
+        let alice = accounts(2);
+        register(&mut contract, &alice);
+        to_award(&mut contract, &manager, &alice, "L1", PRICE_N);
+        to_rework3(&mut contract, &manager, &alice, "L1");
+
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(3_000));
+        contract.settle_partial("L1".into(), 5000);
+
+        assert_eq!(
+            contract.get_lot("L1".into()).unwrap().status,
+            LotStatus::PartialSettled
+        );
+        assert_eq!(contract.lot_bonds.get("L1"), None);
+        assert_eq!(contract.agent_bonds.get(&alice), None);
+    }
+
+    /// TERMINAL accept_work_late → COMPLETED: резерв снят (тот же _release,
+    /// что и он-тайм путь).
+    #[test]
+    fn hb_s18_bond_released_on_accept_work_late() {
+        let mut contract = setup();
+        let manager = accounts(1);
+        let alice = accounts(2);
+        register(&mut contract, &alice);
+        to_award(&mut contract, &manager, &alice, "L1", PRICE_N);
+        late_submit(&mut contract, &alice, "L1");
+
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(30_000));
+        contract.accept_work_late("L1".into());
+
+        assert_eq!(
+            contract.get_lot("L1".into()).unwrap().status,
+            LotStatus::Completed
+        );
+        assert_eq!(contract.lot_bonds.get("L1"), None);
+        assert_eq!(contract.agent_bonds.get(&alice), None);
+    }
+
+    /// TERMINAL void_late → FAILED: резерв снят (без слэша, но резерв
+    /// освобождается в любом случае).
+    #[test]
+    fn hb_s18_bond_released_on_void_late() {
+        let mut contract = setup();
+        let manager = accounts(1);
+        let alice = accounts(2);
+        register(&mut contract, &alice);
+        to_award(&mut contract, &manager, &alice, "L1", PRICE_N);
+        late_submit(&mut contract, &alice, "L1");
+
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(30_000));
+        contract.void_late("L1".into());
+
+        assert_eq!(
+            contract.get_lot("L1".into()).unwrap().status,
+            LotStatus::Failed
+        );
+        assert_eq!(contract.lot_bonds.get("L1"), None);
+        assert_eq!(contract.agent_bonds.get(&alice), None);
+    }
+
+    /// cancel_lot до award: бонда вообще не было (winner == None), поэтому
+    /// отменённый лот не оставляет записей в резерве.
+    #[test]
+    fn hb_s18_cancel_never_leaves_bond_records() {
+        let mut contract = setup();
+        let manager = accounts(1);
+        let alice = accounts(2);
+        register(&mut contract, &alice);
+        create_lot(&mut contract, &manager, "L1");
+        as_ctx(&alice, NearToken::from_yoctonear(0), ts(100));
+        contract.submit_bid("L1".into(), NearToken::from_near(PRICE_N).as_yoctonear(), 10_000, "sig".into());
+
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(1_500));
+        contract.cancel_lot("L1".into());
+
+        assert_eq!(
+            contract.get_lot("L1".into()).unwrap().status,
+            LotStatus::Cancelled
+        );
+        assert_eq!(contract.lot_bonds.get("L1"), None);
+        assert_eq!(contract.agent_bonds.get(&alice), None);
+    }
+
+    /// Терминал одного лота снимает РОВНО его bond: второй живой лот остаётся
+    /// зарезервирован (не полный сброс agent_bonds и не двойное вычитание).
+    #[test]
+    fn hb_s18_terminal_releases_only_that_lots_bond() {
+        let mut contract = setup();
+        let manager = accounts(1);
+        let alice = accounts(2);
+        register(&mut contract, &alice);
+        to_award(&mut contract, &manager, &alice, "L1", PRICE_N);
+        to_award(&mut contract, &manager, &alice, "L2", PRICE_N);
+        let bond1 = *contract.lot_bonds.get("L1").unwrap();
+        let bond2 = *contract.lot_bonds.get("L2").unwrap();
+        assert_eq!(
+            contract.agent_bonds.get(&alice).copied().unwrap(),
+            bond1 + bond2
+        );
+
+        as_ctx(&alice, NearToken::from_yoctonear(0), ts(5000));
+        contract.submit_work("L1".into(), "W:done".into());
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(6000));
+        contract.accept_work("L1".into());
+
+        assert_eq!(contract.lot_bonds.get("L1"), None);
+        assert_eq!(contract.lot_bonds.get("L2"), Some(&bond2));
+        assert_eq!(contract.agent_bonds.get(&alice), Some(&bond2));
+    }
+
     /// Верхняя граница казны: сверх накопленных комиссий выйти нельзя,
     /// иначе owner съедает эскроу живых лотов (conservation: баланс =
     /// escrow + treasury + burned).
@@ -1672,6 +1993,48 @@ mod tests {
 
         as_ctx(&manager, NearToken::from_yoctonear(0), ts(100));
         contract.submit_bid("lot1".into(), NearToken::from_near(BUDGET_N).as_yoctonear(), 10_000, "sig".into());
+    }
+
+    /// HB-M03/G-1 (HERETIC #405 §5): self-dealing закрыт дважды. submit_bid
+    /// не пускает менеджера в bid-набор своего лота, а award_lot отказывает
+    /// явно — даже если в наборе вдруг окажется менеджер (собственность
+    /// инварианта, а не валидация ввода).
+    #[test]
+    #[should_panic(expected = "self-dealing: manager cannot win own lot")]
+    fn probe_3b_award_lot_rejects_manager_as_winner() {
+        let mut contract = setup();
+        let manager = accounts(1);
+        let alice = accounts(2);
+        register(&mut contract, &manager);
+        register(&mut contract, &alice);
+        create_lot(&mut contract, &manager, "lot1");
+
+        as_ctx(&alice, NearToken::from_yoctonear(0), ts(100));
+        contract.submit_bid("lot1".into(), NearToken::from_near(PRICE_N).as_yoctonear(), 10_000, "sig".into());
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(1500));
+        contract.close_bidding("lot1".into());
+        contract.award_lot("lot1".into(), manager.clone()); // panic: self-dealing
+    }
+
+    /// HB-S15 (канон дедлайнов): eta — абсолютная метка, и обещание
+    /// eta == work_deadline невыполнимо он-тайм (сдача требует `now < wd`),
+    /// а f_eta по такому обещанию = 0. Такая ставка не должна вообще
+    /// участвовать в выборе победителя.
+    #[test]
+    #[should_panic(expected = "eta_ms must be before work deadline")]
+    fn submit_bid_with_eta_exactly_at_work_deadline_panics() {
+        let mut contract = setup();
+        let manager = accounts(1);
+        let alice = accounts(2);
+        register(&mut contract, &alice);
+        create_lot(&mut contract, &manager, "lot1");
+        as_ctx(&alice, NearToken::from_yoctonear(0), ts(100));
+        contract.submit_bid(
+            "lot1".into(),
+            NearToken::from_near(PRICE_N).as_yoctonear(),
+            BASE_MS + 20_000,
+            "sig".into(),
+        );
     }
 
     /// PROBE-4: auto-release без сабмиссии невозможен — Rework(3) не принимается.
@@ -1793,6 +2156,82 @@ mod tests {
 
         as_ctx(&manager, NearToken::from_yoctonear(0), ts(100_000));
         contract.award_lot("lot1".into(), alice.clone()); // panic
+    }
+
+    // ---- HB-S14/S15 (HERETIC #405 §6): канон дедлайнов ------------------
+    //
+    // «Дедлайн наступил» ⟺ now >= deadline, «до дедлайна» ⟺ now < deadline —
+    // ровно как решил HB-S06, закрыв 1-ms мёртвую зону на границе no_show.
+    // Строгие `>` (вместо `>=`) и инклюзивные `<=` (вместо `<`) в тех же
+    // ветках оставляли один миллисекундный такт, где действие уже нельзя
+    // совершить, а встречная защита от него ещё не работала.
+
+    /// Граница wd: сдача запрещена (`now < wd`), значит award в самый wd
+    /// создавал лот с заведомо невыполнимой сдачей → мгновенный слэш.
+    #[test]
+    #[should_panic(expected = "work deadline already passed")]
+    fn award_at_exactly_work_deadline_is_rejected() {
+        let mut contract = setup();
+        let manager = accounts(1);
+        let alice = accounts(2);
+        register(&mut contract, &alice);
+        create_lot(&mut contract, &manager, "lot1");
+
+        as_ctx(&alice, NearToken::from_yoctonear(0), ts(100));
+        contract.submit_bid("lot1".into(), NearToken::from_near(PRICE_N).as_yoctonear(), 10_000, "sig".into());
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(1500));
+        contract.close_bidding("lot1".into());
+
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(20_000));
+        contract.award_lot("lot1".into(), alice.clone()); // panic
+    }
+
+    /// Канон не сужает живое окно: за 1 ms до wd award ещё возможен.
+    #[test]
+    fn award_one_ms_before_work_deadline_succeeds() {
+        let mut contract = setup();
+        let manager = accounts(1);
+        let alice = accounts(2);
+        register(&mut contract, &alice);
+        create_lot(&mut contract, &manager, "lot1");
+
+        as_ctx(&alice, NearToken::from_yoctonear(0), ts(100));
+        contract.submit_bid("lot1".into(), NearToken::from_near(PRICE_N).as_yoctonear(), 10_000, "sig".into());
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(1500));
+        contract.close_bidding("lot1".into());
+
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(19_999));
+        contract.award_lot("lot1".into(), alice.clone());
+        assert_eq!(
+            contract.get_lot("lot1".into()).unwrap().status,
+            LotStatus::Awarded
+        );
+    }
+
+    /// Граница wd для чужого лота: award-путь закрыт тем же `now < wd`,
+    /// живых переходов не осталось → спасательный crank открыт с wd, а не
+    /// с wd+1 (симметрично mark_no_show).
+    #[test]
+    fn cancel_by_stranger_at_exactly_work_deadline_works() {
+        let mut contract = setup();
+        let manager = accounts(1);
+        let alice = accounts(2);
+        let stranger = accounts(4);
+        register(&mut contract, &alice);
+        create_lot(&mut contract, &manager, "lot1");
+
+        as_ctx(&alice, NearToken::from_yoctonear(0), ts(100));
+        contract.submit_bid("lot1".into(), NearToken::from_near(PRICE_N).as_yoctonear(), 10_000, "sig".into());
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(1500));
+        contract.close_bidding("lot1".into());
+
+        as_ctx(&stranger, NearToken::from_yoctonear(0), ts(20_000));
+        contract.cancel_lot("lot1".into());
+        assert_eq!(
+            contract.get_lot("lot1".into()).unwrap().status,
+            LotStatus::Cancelled
+        );
+        assert_eq!(contract.get_escrow(), 0);
     }
 
     /// PROBE-8: PARTIAL — падение (q=0), рейтинг снижается даже при α→1.
@@ -2295,11 +2734,12 @@ mod tests {
         assert_eq!(contract.get_burned(), 0);
     }
 
-    /// комплементарный край: mark_no_show работает при now == wd (`>=`),
-    /// late_submit_work — нет (`>`). Мутация `>` → `>=` здесь краснеет.
+    /// HB-S15 (канон дедлайнов): при now == wd он-тайм сдача уже запрещена
+    /// (`now < wd`), поэтому именно с wd открывается окно поздней сдачи —
+    /// иначе на этом миллисекундном такте победитель не имел бы ни одного
+    /// действия, а менеджер мог слэшить (`now >= wd`).
     #[test]
-    #[should_panic(expected = "work deadline not passed")]
-    fn late_submit_work_exactly_at_work_deadline_panics() {
+    fn late_submit_work_at_exactly_work_deadline_opens_late_window() {
         let mut contract = setup();
         let manager = accounts(1);
         let alice = accounts(2);
@@ -2307,6 +2747,10 @@ mod tests {
         to_award(&mut contract, &manager, &alice, "lot1", PRICE_N);
         as_ctx(&alice, NearToken::from_yoctonear(0), ts(20_000));
         contract.late_submit_work("lot1".into(), "W:x".into());
+        assert_eq!(
+            contract.get_lot("lot1".into()).unwrap().status,
+            LotStatus::SubmittedLate
+        );
     }
 
     /// после verify_deadline окно поздней сдачи закрыто — там уже void_late
@@ -2529,6 +2973,33 @@ mod tests {
         assert_eq!(rec.rating, R0 + DELTA_UP / 4);
     }
 
+    /// HB-S17 (HERETIC #405 §3): у штрафа скорости должен быть один источник
+    /// правды — кривая `_speed_factor`. Тест связывает сохранённый s_scaled с
+    /// её значением в момент сабмиссии: если кривая изменится, а поздняя ветка
+    /// останется с константой, тест покраснеет.
+    #[test]
+    fn accept_work_late_speed_matches_the_speed_curve() {
+        let mut contract = setup();
+        let manager = accounts(1);
+        let alice = accounts(2);
+        register(&mut contract, &alice);
+        to_award(&mut contract, &manager, &alice, "lot1", PRICE_N);
+        late_submit(&mut contract, &alice, "lot1"); // ts = work_deadline + 1
+
+        let lot = contract.get_lot("lot1".into()).unwrap();
+        let submit_ts = lot.submission.as_ref().unwrap().ts_ms;
+        let expected = contract._speed_factor(&lot, submit_ts);
+
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(30_000));
+        contract.accept_work_late("lot1".into());
+
+        let rec = contract.get_agent(&alice).unwrap();
+        let ev = rec.ledger.last().unwrap();
+        assert_eq!(ev.s_scaled, expected, "поздний s обязан равняться значению кривой");
+        assert_eq!(ev.s_scaled, 0, "просрочка за окном — s = 0");
+        assert_eq!(ev.q_final_scaled, SCALE / 2);
+    }
+
     /// Поздняя сдача обязана стоить дешевле он-тайм (иначе окно work_deadline
     /// ничего не значит). Два лота в одном контракте: s=SCALE против s=0.
     #[test]
@@ -2614,11 +3085,12 @@ mod tests {
         assert_eq!(contract.get_escrow(), 0);
     }
 
-    /// Найденная асимметрия: void_late крэнкается по строгому `> vd`, а
-    /// accept_work — по `>= vd`. На exactly vd посторонний ещё не властилен.
+    /// HB-S14 (канон дедлайнов): закрывает найденную асимметрию — accept_work
+    /// открывал постороннему авто-релиз по `>= vd`, а void_late держал его на
+    /// строгом `> vd`. На exactly vd лот в SubmittedLate уже не имеет живого
+    /// пути кроме менеджера, так что crank открыт с самой границы.
     #[test]
-    #[should_panic(expected = "manager only (or verify deadline passed)")]
-    fn void_late_stranger_at_exactly_verify_deadline_panics() {
+    fn void_late_stranger_at_exactly_verify_deadline_works() {
         let mut contract = setup();
         let manager = accounts(1);
         let alice = accounts(2);
@@ -2628,6 +3100,11 @@ mod tests {
         late_submit(&mut contract, &alice, "lot1");
         as_ctx(&anyone, NearToken::from_yoctonear(0), ts(40_000));
         contract.void_late("lot1".into());
+        assert_eq!(
+            contract.get_lot("lot1".into()).unwrap().status,
+            LotStatus::Failed
+        );
+        assert_eq!(contract.get_escrow(), 0);
     }
 
     /// Проверка статуса идёт ПЕРЕД проверкой полномочий: посторонний на Awarded-лоте
@@ -2647,10 +3124,12 @@ mod tests {
     }
 
     /// I-8 для висящих rework: mark_no_show принимает Awarded | Rework(k).
-    /// Сабмиссия в Rework очищена reject_work, поэтому "work was submitted"
-    /// не мешает; слэш и NO_SHOW-рейтинг применяются как раньше.
+    /// HB-W31 (6.2): из Rework агент уже сдавал — терминал FAILED и
+    /// NO_SHOW-рейтинг сохраняются, но слэша bond'а НЕТ: rework-grind
+    /// реджектов менеджером не должен конвертироваться в слэш стейка
+    /// честного исполнителя; bond возвращается целиком.
     #[test]
-    fn no_show_from_rework_slashes_and_terminalizes() {
+    fn no_show_from_rework_terminalizes_without_slash() {
         let mut contract = setup();
         let manager = accounts(1);
         let alice = accounts(2);
@@ -2668,14 +3147,150 @@ mod tests {
         let lot = contract.get_lot("lot1".into()).unwrap();
         assert_eq!(lot.status, LotStatus::Failed);
         assert_eq!(contract.get_escrow(), 0);
-        let slash = stake * NO_SHOW_SLASH_BPS as u128 / 10_000;
-        assert_eq!(contract.get_burned(), slash);
-        assert!(slash > 0);
+        assert_eq!(contract.get_burned(), 0);
         let rec = contract.get_agent(&alice).unwrap();
-        assert_eq!(rec.stake, stake - slash);
+        assert_eq!(rec.stake, stake);
         let ev = rec.ledger.last().unwrap();
         assert_eq!(ev.term, "NO_SHOW");
         assert_eq!(rec.rating, R0 - DELTA_DN / 2);
+    }
+
+    /// HB-W31 (6.3): из Rework после work_deadline у агента живого хода нет
+    /// (submit_work требует now < wd, late_submit — только Awarded), поэтому
+    /// менеджерское окно (wd, vd) под Rework не защищает никакую гонку —
+    /// crank открыт любому сразу после wd; это же разблокирует hold-up
+    /// settle_partial'ом: bond не может висеть вечно.
+    #[test]
+    fn no_show_rework_stranger_cranks_after_work_deadline() {
+        let mut contract = setup();
+        let manager = accounts(1);
+        let alice = accounts(2);
+        let stranger = accounts(3);
+        register(&mut contract, &alice);
+        to_award(&mut contract, &manager, &alice, "lot1", PRICE_N);
+        as_ctx(&alice, NearToken::from_yoctonear(0), ts(2000));
+        contract.submit_work("lot1".into(), "W:x".into());
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(2500));
+        contract.reject_work("lot1".into());
+        let stake = contract.get_agent(&alice).unwrap().stake;
+
+        as_ctx(&stranger, NearToken::from_yoctonear(0), ts(20_000));
+        contract.mark_no_show("lot1".into());
+
+        let lot = contract.get_lot("lot1".into()).unwrap();
+        assert_eq!(lot.status, LotStatus::Failed);
+        assert_eq!(contract.get_escrow(), 0);
+        assert_eq!(contract.get_burned(), 0);
+        assert_eq!(contract.get_agent(&alice).unwrap().stake, stake);
+        assert_eq!(contract.get_agent(&alice).unwrap().ledger.last().unwrap().term, "NO_SHOW");
+    }
+
+    /// HB-W31: wd-1 ещё закрыт, а ровно на wd permissionless Rework-crank
+    /// разрешён. Пойманная паника не должна изменить состояние лота.
+    #[test]
+    fn no_show_rework_crank_at_exact_wd() {
+        let mut contract = setup();
+        let manager = accounts(1);
+        let alice = accounts(2);
+        let stranger = accounts(3);
+        register(&mut contract, &alice);
+        to_award(&mut contract, &manager, &alice, "lot1", PRICE_N);
+        as_ctx(&alice, NearToken::from_yoctonear(0), ts(2000));
+        contract.submit_work("lot1".into(), "W:x".into());
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(2500));
+        contract.reject_work("lot1".into());
+
+        as_ctx(&stranger, NearToken::from_yoctonear(0), ts(19_999));
+        let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            contract.mark_no_show("lot1".into());
+        }))
+        .expect_err("Rework crank at wd-1 must panic");
+        let panic_message = panic
+            .downcast_ref::<String>()
+            .map(|message| message.as_str())
+            .or_else(|| panic.downcast_ref::<&str>().copied())
+            .unwrap_or("");
+        assert!(
+            panic_message.contains("work deadline not passed"),
+            "unexpected wd-1 panic: {panic_message}"
+        );
+        assert_eq!(
+            contract.get_lot("lot1".into()).unwrap().status,
+            LotStatus::Rework(1)
+        );
+
+        as_ctx(&stranger, NearToken::from_yoctonear(0), ts(20_000));
+        contract.mark_no_show("lot1".into());
+        assert_eq!(
+            contract.get_lot("lot1".into()).unwrap().status,
+            LotStatus::Failed
+        );
+    }
+
+    /// HB-W31: достижение Rework(3) не меняет permissionless no-slash crank.
+    #[test]
+    fn no_show_from_rework3_terminalizes_without_slash() {
+        let mut contract = setup();
+        let manager = accounts(1);
+        let alice = accounts(2);
+        let stranger = accounts(3);
+        register(&mut contract, &alice);
+        to_award(&mut contract, &manager, &alice, "lot1", PRICE_N);
+        let stake = contract.get_agent(&alice).unwrap().stake;
+        let initial_bond = contract.agent_bonds.get(&alice).copied().unwrap();
+        assert!(initial_bond > 0);
+
+        for attempt in 0u64..3 {
+            let submitted_at = 2_000 + attempt * 1_000;
+            as_ctx(&alice, NearToken::from_yoctonear(0), ts(submitted_at));
+            contract.submit_work("lot1".into(), format!("W:{attempt}"));
+            as_ctx(&manager, NearToken::from_yoctonear(0), ts(submitted_at + 500));
+            contract.reject_work("lot1".into());
+        }
+        assert_eq!(
+            contract.get_lot("lot1".into()).unwrap().status,
+            LotStatus::Rework(MAX_REWORK)
+        );
+
+        as_ctx(&stranger, NearToken::from_yoctonear(0), ts(20_001));
+        contract.mark_no_show("lot1".into());
+
+        assert_eq!(
+            contract.get_lot("lot1".into()).unwrap().status,
+            LotStatus::Failed
+        );
+        assert_eq!(contract.get_agent(&alice).unwrap().stake, stake);
+        assert_eq!(contract.get_burned(), 0);
+        assert_eq!(contract.lot_bonds.get("lot1"), None);
+        assert_eq!(contract.agent_bonds.get(&alice), None);
+    }
+
+    /// HB-W31: terminal no-show освобождает оба bond-map; весь свободный
+    /// стейк после этого можно вывести одним вызовом.
+    #[test]
+    fn no_show_rework_releases_bond_maps() {
+        let mut contract = setup();
+        let manager = accounts(1);
+        let alice = accounts(2);
+        let stranger = accounts(3);
+        register(&mut contract, &alice);
+        to_award(&mut contract, &manager, &alice, "lot1", PRICE_N);
+        let stake = contract.get_agent(&alice).unwrap().stake;
+        assert!(contract.agent_bonds.get(&alice).copied().unwrap_or(0) > 0);
+        assert!(contract.lot_bonds.get("lot1").is_some());
+
+        as_ctx(&alice, NearToken::from_yoctonear(0), ts(2000));
+        contract.submit_work("lot1".into(), "W:x".into());
+        as_ctx(&manager, NearToken::from_yoctonear(0), ts(2500));
+        contract.reject_work("lot1".into());
+        as_ctx(&stranger, NearToken::from_yoctonear(0), ts(20_001));
+        contract.mark_no_show("lot1".into());
+
+        assert_eq!(contract.agent_bonds.get(&alice), None);
+        assert_eq!(contract.lot_bonds.get("lot1"), None);
+        as_ctx(&alice, NearToken::from_yoctonear(0), ts(20_002));
+        contract.withdraw_stake(NearToken::from_yoctonear(stake));
+        assert_eq!(contract.get_agent(&alice).unwrap().stake, 0);
     }
 
     /// Enum-вариант добавлен В КОНЕЦ — borsh-порядок существующих статусов

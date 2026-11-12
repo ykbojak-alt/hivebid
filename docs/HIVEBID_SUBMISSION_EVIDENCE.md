@@ -8,11 +8,13 @@ same auction (ROY-C rating 635500 → 671950, winner margin +0.099, scores
 0.351 / 0.420 / 0.520) are in the repository `README.md`; the raw RPC response
 is in `auction-evidence.json`.
 
-**Source revision.** The source tree published in this repository is one
-revision behind the deployed build: 83 lib tests here, 100 in the deployed
-build, which additionally exposes the score as the read-only view
-`get_bid_scores`. Both revisions compute the same 0.4/0.4/0.2 formula. See
-the revision note in the `README.md`.
+**Source revision.** The source tree in this repository builds the deployed
+artifact byte for byte: 100 lib tests, wasm 468,209 B, sha256
+`b545b8adb25b5b92b2233d32ae5e6c4f026852c8ceae7b5b074331afb8efb284`, md5
+`d3c8d79de5b09f3a82f13a0f92362d87` — the same values recorded below for the
+live deployment. Rebuilding with
+`AWS_LC_SYS_NO_ASM=1 cargo build --target wasm32-unknown-unknown --release`
+reproduces that hash.
 
 ## 1. Commit-backed provenance
 

@@ -16,7 +16,7 @@ No-show burns 50% of stake. Bidding deadlines, close, and award events are all c
 The demo page carries the recorded run and the exact read-only calls to reproduce it; the contract RPC is the authoritative source. Some overlays in the recording are cached snapshots.
 8. **Why do the README and this evidence pack show different margins (+0.099 vs +0.087)?**
 They are two readings of the same lot: this pack is the pre-settle snapshot, the README table is the state after the settlement, when ROY-C's rating had already risen (635500 → 671950) and lifted every swarm's effective rating.
-9. **The repository says 83 tests, the deployed contract reports 100. Which one do I get?**
-The source tree in this repository is one revision behind the deployed build. The deployed instance additionally exposes the score as the read-only view `get_bid_scores`; in this tree the same numbers are reproducible from `get_lot` + `get_rating_eff`. Both compute the same 0.4/0.4/0.2 formula.
+9. **Does this repository build the contract that is live on testnet?**
+Yes. `cargo test --lib` gives 100 passing lib tests, and rebuilding the wasm from this tree reproduces the deployed artifact byte for byte — sha256 `b545b8ad…`, md5 `d3c8d79d…`, 468,209 B, which is the artifact of `hivebid-yksunder.testnet` (code hash `DCcTQUf…HPmUf`).
 10. **Where do I verify it myself in five minutes?**
-Run `cargo test --lib` at 83 lib tests, build at wasm32 target, then `integration/happy-path.js`; read `docs/HIVEBID_SUBMISSION_EVIDENCE.md` and inspect the award/accept postings for lot `roy-1794159209212`.
+Run `cargo test --lib` at 100 lib tests, build at wasm32 target, then `integration/happy-path.js`; read `docs/HIVEBID_SUBMISSION_EVIDENCE.md` and inspect the award/accept postings for lot `roy-1794159209212`.

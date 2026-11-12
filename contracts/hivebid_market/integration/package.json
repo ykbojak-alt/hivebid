@@ -4,7 +4,9 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "test": "node happy-path.js"
+    "test": "node happy-path.js",
+    "test:edge": "node edge-paths.js",
+    "test:all": "node happy-path.js && node edge-paths.js"
   },
   "dependencies": {
     "near-workspaces": "^4.0.0"

@@ -40,13 +40,11 @@ manager                    contract                     swarm
    |                          | escrow -> 0, rating update |
 ```
 
-- **Scoring** — computed inside the contract (`fn _score` in
-  `contracts/hivebid_market/src/lib.rs`): `score = 0.4·(1 − price/budget) +
-  0.4·rating_eff + 0.2·f_eta`. The lot budget doubles as the task-difficulty
-  signal — pricier lots reward cheaper bids, harder tasks are priced higher.
-  On the deployed testnet instance the same calculation is also exposed as the
-  read-only view `get_bid_scores`; in this source tree it is reproducible from
-  `get_lot` (all bids of a lot) plus `get_rating_eff`.
+- **Scoring** — computed inside the contract (`fn _score`) and readable on
+  chain through the read-only view `get_bid_scores`:
+  `score = 0.4·(1 − price/budget) + 0.4·rating_eff + 0.2·f_eta`. The lot budget
+  doubles as the task-difficulty signal — pricier lots reward cheaper bids,
+  harder tasks are priced higher.
 - **Escrow conservation**: budget reserved before award; payout only after
   accepted work; `cancel_lot` is permissionless after the work deadline.
 - **Reputation on-chain**: `rating` (0–1e6 scale) updated on accept; no-show
@@ -83,18 +81,20 @@ swarm's effective rating and therefore every score.
 lot (margin +0.087, ROY-C rating 635500). Both are on-chain readings; they
 differ by exactly one settlement.
 
-**Two revisions of one contract.** The source tree in this repository is one
-revision *behind* the deployed build:
+**This source tree is the deployed contract.** Rebuilding the artifact from
+this tree reproduces the live instance byte for byte:
 
-| | This repository | Deployed on testnet |
-|---|---|---|
-| lib tests | **83** (verified here: `cargo test --lib` → 83 passed / 0 failed) | 100 (per the evidence pack) |
-| wasm artifact | canonical `434,961 B` (built by the `prepare_wasm` test) | `468,209 B`, md5 `D3C8D79D…`, sha256 `B545B8AD…` |
-| score view | `fn _score` (private) — reproducible via `get_lot` + `get_rating_eff` | read-only view `get_bid_scores` |
+| | Value |
+|---|---|
+| lib tests | **100** (`cargo test --lib` → 100 passed / 0 failed) |
+| artifact | `wasm/hivebid_market.wasm`, 468,209 B |
+| sha256 | `b545b8adb25b5b92b2233d32ae5e6c4f026852c8ceae7b5b074331afb8efb284` |
+| md5 | `d3c8d79de5b09f3a82f13a0f92362d87` |
+| deployed code hash | `DCcTQUf…HPmUf` on `hivebid-yksunder.testnet` |
 
-Both revisions compute the same 0.4/0.4/0.2 formula. Judges reading the chain
-should use the deployed view names; judges reading this tree will find the same
-numbers under `get_lot`.
+Superseded builds of earlier revisions are kept next to it, named
+`hivebid_market.pre-*.wasm` — for traceability only, they are not the
+deployment.
 
 ## Demo
 
@@ -156,7 +156,7 @@ See [`docs/SIMULATION.md`](docs/SIMULATION.md) for the captured sample table, es
 
 ## For judges — reproduce in 5 minutes
 
-1. `cd contracts/hivebid_market && cargo test --lib` → **83 unit tests + wasm-prepare harness, all green**.
+1. `cd contracts/hivebid_market && cargo test --lib` → **100 unit tests + wasm-prepare harness, all green**.
 2. `AWS_LC_SYS_NO_ASM=1 cargo build --target wasm32-unknown-unknown --release`
    → `target/wasm32-unknown-unknown/release/hivebid_market.wasm`.
 3. `cd contracts/hivebid_market/integration && npm ci && node happy-path.js`
@@ -171,7 +171,7 @@ See [`docs/SIMULATION.md`](docs/SIMULATION.md) for the captured sample table, es
 ## Quickstart (do X → see Y)
 
 ```sh
-# 1. Tests — expect 83 checks green
+# 1. Tests — expect 100 checks green
 cd contracts/hivebid_market && cargo test --lib
 
 # 2. Build the wasm artifact
@@ -223,23 +223,22 @@ auction-evidence.json      raw RPC read of the recorded auction
 
 ## WASM artifacts
 
-`contracts/hivebid_market/wasm/` contains three builds for traceability:
+`contracts/hivebid_market/wasm/` holds the artifact of this source tree plus
+three superseded builds of earlier revisions:
 
 | File | Size | Notes |
 |---|---|---|
-| `canonical-hivebid_market.wasm` | 434,961 B | canonical artifact used by `prepare_wasm` tests |
-| `hivebid_market.wasm` | 463,640 B | pinned build (md5 `d9e0b300…`) — historical candidate |
-| `hivebid_market.d7.wasm` | 463,484 B | delta-7 build |
+| `hivebid_market.wasm` | 468,209 B | **the deployed artifact** — sha256 `b545b8ad…`, md5 `d3c8d79d…`; rebuilding this tree reproduces it byte for byte |
+| `hivebid_market.pre-promotion-20261108.wasm` | 463,640 B | superseded build |
+| `hivebid_market.pre-w14-20261108.wasm` | 461,793 B | superseded build |
+| `hivebid_market.pre-w31-20261108.wasm` | 461,745 B | superseded build |
 
-The **deployed** contract on testnet is a later build: 468,209 B (md5
-`D3C8D79D…`, sha256 `B545B8AD…`), code hash `DCcTQUf…HPmUf`. It is not one of
-the three files above — see the revision note in "Live on NEAR testnet".
 `HIVEBID_DEPLOY_RUNBOOK.md` documents which artifact was signed and how the
 deployment was verified.
 
 ## Test status
 
-- `cargo test --lib`: **83 lib tests + 1 prepare_wasm check, all green**
+- `cargo test --lib`: **100 lib tests + 1 prepare_wasm check, all green**
   (verified on this source tree)
 - Integration smoke (`integration/`): happy path + edge paths green on local
   NEAR sandbox; live testnet runs recorded (see Evidence below)

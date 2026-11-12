@@ -26,7 +26,7 @@ assembly-optimised crypto backend.
 
 ```bash
 cd contracts/hivebid_market
-cargo test --lib                     # expect: 83 passed / 0 failed
+cargo test --lib                     # expect: 100 passed / 0 failed
 AWS_LC_SYS_NO_ASM=1 cargo build --target wasm32-unknown-unknown --release
 AWS_LC_SYS_NO_ASM=1 cargo test --test prepare_wasm -- --nocapture
 sha256sum src/lib.rs target/wasm32-unknown-unknown/release/hivebid_market.wasm

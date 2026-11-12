@@ -16,9 +16,9 @@
 // failing op + before/after snap) and exit 1. Deterministic seed → reproducible.
 //
 // Run:
-//   HIVEBID_WASM=/root/nexus/contracts/hivebid_market/wasm/hivebid_market.wasm \
-//   NEAR_SANDBOX_BINARY_PATH=/root/sandbox-neard \
-//   NEAR_SANDBOX_BIN_PATH=/root/sandbox-neard \
+//   HIVEBID_WASM=../wasm/hivebid_market.wasm \
+//   NEAR_SANDBOX_BINARY_PATH=/tmp/hivebid-sandbox-neard \
+//   NEAR_SANDBOX_BIN_PATH=/tmp/hivebid-sandbox-neard \
 //   SEED=<n> FUZZ_OPS=<n> node fuzz-economic.js
 const fs = require('fs');
 const path = require('path');

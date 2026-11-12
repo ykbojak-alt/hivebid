@@ -5,7 +5,7 @@ const fs = require("fs");
 
 const RPC = process.env.VIDEO_RPC || "http://127.0.0.1:31915";
 const KEY_FILE = process.env.VIDEO_KEY_FILE || "/tmp/sandbox/2ff4ce10-2539-44d0-822e-b62be2748772/validator_key.json";
-const WASM = fs.readFileSync("/root/nexus/contracts/hivebid_market/wasm/canonical-hivebid_market.wasm");
+const WASM = fs.readFileSync("../wasm/canonical-hivebid_market.wasm");
 const ROOT_KEY = JSON.parse(fs.readFileSync(KEY_FILE));
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const GAS = 30000000000000;

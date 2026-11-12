@@ -4,11 +4,11 @@ const { InMemoryKeyStore } = require("@near-js/keystores");
 const fs = require("fs");
 
 const RPC = process.env.VIDEO_RPC || "http://127.0.0.1:3030";
-const KEY_FILE = process.env.VIDEO_KEY_FILE || "/root/sandbox/video-clean2/validator_key.json";
-const WASM_PATH = process.env.VIDEO_WASM || "/root/nexus/contracts/hivebid_market/target/wasm32-unknown-unknown/release/hivebid_market.wasm";
+const KEY_FILE = process.env.VIDEO_KEY_FILE || "/tmp/hivebid-sandbox/video-clean2/validator_key.json";
+const WASM_PATH = process.env.VIDEO_WASM || "../target/wasm32-unknown-unknown/release/hivebid_market.wasm";
 const WASM = fs.readFileSync(WASM_PATH);
 const ROOT_KEY = JSON.parse(fs.readFileSync(KEY_FILE));
-const KEYS_DB = "/root/nexus/contracts/hivebid_market/integration/video-keys.json";
+const KEYS_DB = "../integration/video-keys.json";
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const GAS = 30000000000000;
 

@@ -6,7 +6,7 @@ const fs = require("fs");
 const RPC = process.env.VIDEO_RPC || "http://127.0.0.1:31915";
 const KEY_FILE = process.env.VIDEO_KEY_FILE || "/tmp/sandbox/2ff4ce10-2539-44d0-822e-b62be2748772/validator_key.json";
 const ROOT_KEY = JSON.parse(fs.readFileSync(KEY_FILE));
-const KEYS_DB = "/root/nexus/contracts/hivebid_market/integration/video-keys.json";
+const KEYS_DB = "../integration/video-keys.json";
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const GAS = 30000000000000;
 
@@ -91,7 +91,7 @@ async function main() {
   if (!cs || cs.code_hash === "11111111111111111111111111111111") {
     console.log("[1] deploying...");
     await contract.signAndSendTransaction({ receiverId: contractId, actions: [
-      transactions.deployContract(fs.readFileSync(process.env.VIDEO_WASM || "/root/nexus/contracts/hivebid_market/target/wasm32-unknown-unknown/release/hivebid_market.wasm")),
+      transactions.deployContract(fs.readFileSync(process.env.VIDEO_WASM || "../target/wasm32-unknown-unknown/release/hivebid_market.wasm")),
     ]});
     await sleep(1000);
     try { await view("get_agent_ids"); } catch (e) {

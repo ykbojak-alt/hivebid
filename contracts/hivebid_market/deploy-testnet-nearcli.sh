@@ -2,7 +2,7 @@
 # HiveBid Market — testnet deploy + smoke (near-cli 4.x синтаксис).
 # Зеркало deploy-testnet.sh (near-cli-rs) для установленного near-cli 4.0.13.
 # Аккаунты передаются env: MKT= MGR= AGT= (faucet-аккаунты без sub-account паттерна).
-# Креды: ~/.near-credentials/testnet/<account>.json (FullAccess).
+# Креды: C:\Users\BoJaK\.near-credentials\testnet\<account>.json (FullAccess).
 #
 #   MKT=hivebid-yksunder.testnet MGR=hivebid-manager-yks.testnet AGT=hivebid-agent-yks.testnet \
 #     HIVEBID_WASM=wasm/hivebid_market.wasm ./deploy-testnet-nearcli.sh deploy

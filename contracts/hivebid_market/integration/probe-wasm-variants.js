@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const { Worker, NEAR } = require('near-workspaces');
-const DIR = '/root/nexus/contracts/hivebid_market/wasm';
+const DIR = '../wasm';
 const FILES = ['hivebid_market.wasm', 'hivebid_market.d7.wasm', 'canonical-hivebid_market.wasm'];
 
 (async () => {

@@ -1,9 +1,9 @@
 const { Worker, NEAR } = require("near-workspaces");
 const fs = require("fs");
-const WASM = fs.readFileSync("/root/nexus/contracts/hivebid_market/wasm/canonical-hivebid_market.wasm");
+const WASM = fs.readFileSync("../wasm/canonical-hivebid_market.wasm");
 
 async function main() {
-  const worker = await Worker.init({ rm: false, homeDir: "/root/sandbox/video-demo2" });
+  const worker = await Worker.init({ rm: false, homeDir: "/tmp/hivebid-sandbox/video-demo2" });
   const root = worker.rootAccount;
   const contract = await root.getAccount("hivebid.test.near");
   const agent = await root.createSubAccount("probe-agent");

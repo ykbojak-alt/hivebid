@@ -1,13 +1,13 @@
 const { Worker, NEAR } = require("near-workspaces");
 const fs = require("fs");
 
-const WASM = fs.readFileSync(process.env.HIVEBID_WASM || "/root/nexus/contracts/hivebid_market/wasm/canonical-hivebid_market.wasm");
+const WASM = fs.readFileSync(process.env.HIVEBID_WASM || "../wasm/canonical-hivebid_market.wasm");
 const TH = (hex) => "T:" + hex.padStart(64, "0");
 
 function assert(cond, msg) { if (!cond) throw new Error("ASSERT: " + msg); }
 
 async function main() {
-  const worker = await Worker.init({ rm: false, homeDir: "/root/sandbox/video-demo2" });
+  const worker = await Worker.init({ rm: false, homeDir: "/tmp/hivebid-sandbox/video-demo2" });
   const root = worker.rootAccount;
 
   // 1. Контракт
