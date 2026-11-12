@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HiveBid SIM — live page</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --raised: #1f2733;
+    --border: #30363d; --fg: #e6edf3; --muted: #8b949e; --dim: #6e7681;
+    --accent: #58a6ff; --done: #3fb950; --working: #d29922; --blocked: #f85149;
+    --mono: ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column; min-height: 100vh;
+    padding: 14px; gap: 10px;
+  }
+  .top {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px; flex: none;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  }
+  .title { font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .title .logo { color: var(--accent); }
+  .badge {
+    font-size: 10px; font-weight: 600; letter-spacing: .03em;
+    padding: 2px 8px; border-radius: 4px; text-transform: uppercase;
+    background: var(--blocked); color: var(--bg);
+  }
+  .badge.on { background: var(--done); }
+  .src { margin-left: auto; font-size: 11px; color: var(--dim);
+    font-family: var(--mono); }
+  .stats {
+    display: flex; align-items: center; gap: 12px; flex: none;
+    padding: 4px 14px; font-size: 11px; color: var(--dim);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  }
+  .stats .flex { flex: 1; }
+  .stats .gen { color: var(--muted); }
+  .list {
+    flex: 1; min-height: 0; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 4px 2px;
+  }
+  .card {
+    flex: none; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  }
+  .card-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+  }
+  .round { font-weight: 600; font-size: 12px; }
+  .lot { font-size: 11px; color: var(--dim); }
+  .count { margin-left: auto; font-size: 10px; color: var(--muted); }
+  .rows { padding: 8px 12px; }
+  .row {
+    display: flex; align-items: center; gap: 8px; padding: 2px 0;
+  }
+  .idx { width: 18px; flex: none; font-size: 10px; color: var(--dim);
+    font-family: var(--mono); text-align: right; }
+  .agent { width: 64px; flex: none; font-weight: 600; font-size: 11px;
+    font-family: var(--mono); }
+  .agent.win { color: var(--accent); }
+  .bar { flex: 1; min-width: 0; height: 5px; border-radius: 3px;
+    background: var(--border); overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 3px; }
+  .bar .done { background: var(--done); }
+  .bar .working { background: var(--working); }
+  .bar .blocked { background: var(--blocked); }
+  .bar .dim { background: var(--dim); }
+  .score { width: 46px; flex: none; text-align: right; font-size: 11px;
+    font-family: var(--mono); }
+  .amount { width: 62px; flex: none; text-align: right; font-size: 11px;
+    color: var(--dim); font-family: var(--mono); }
+  .card-foot {
+    display: flex; align-items: center; gap: 8px; padding: 6px 12px 10px;
+  }
+  .chip {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--raised); border-radius: 5px; padding: 3px 8px;
+  }
+  .chip .k { font-size: 10px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .04em; }
+  .chip .v { font-size: 11px; font-weight: 600; font-family: var(--mono); }
+  .chip .v.win { color: var(--accent); }
+  .chip .v.clear { color: var(--working); }
+  .empty {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 6px; color: var(--dim);
+    padding: 40px 20px;
+  }
+  .empty .big { font-size: 13px; color: var(--muted); }
+  .empty code { font-family: var(--mono); font-size: 11px;
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 2px 8px; border-radius: 5px; }
+  .foot {
+    flex: none; padding: 6px 14px; font-size: 10px; color: var(--dim);
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+  }
+  .btn {
+    font: inherit; font-size: 11px; color: var(--accent);
+    background: var(--raised); border: 1px solid var(--border);
+    padding: 2px 10px; border-radius: 5px; cursor: pointer;
+  }
+  .btn:hover { background: #263241; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="title"><span class="logo">◆</span>HiveBid <span style="font-weight:400">SIM</span></div>
+  <span id="badge" class="badge">NO SIM</span>
+  <button id="refresh" class="btn" title="Reload sample">↻ refresh</button>
+  <span class="src">docs/demo/sim-swarm.sample.json</span>
+</header>
+
+<div class="stats">
+  <span id="roundsStat">rounds —</span>
+  <span id="avgStat">avg bids —</span>
+  <span class="flex"></span>
+  <span id="genStat" class="gen"></span>
+</div>
+
+<main id="list" class="list"></main>
+
+<footer class="foot">READ-ONLY · <span id="srcLine">polling …</span></footer>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ */
+/* Contract format (W118, coordinated with CODEX sim-swarm.js):         */
+/*   { "ok": true, "generated_at": "<ISO>", "rounds": [                */
+/*       { "round": 1, "lot": "LOT-…", "bids": [                       */
+/*           { "agent": "ROY-A", "amount": "1.25N", "score_norm": 0.42 } */
+/*         ], "winner": "ROY-B", "clearing_price": "1.20N" } ] }       */
+/* ------------------------------------------------------------------ */
+
+var SAMPLE_PATH = "sim-swarm.sample.json";
+var POLL_MS = 10000;
+
+/* Inline fallback: identical data to sim-swarm.sample.json. Used when
+   the page is opened straight from disk (file://), where fetch() is
+   blocked by CORS; the source line below reports which copy was used. */
+var INLINE_SAMPLE = {"ok":true,"generated_at":"2026-11-08T21:51:03.588Z","rounds":[{"round":1,"lot":"LOT-SIM-001","bids":[{"agent":"ROY-01","amount":"1.45N","score_norm":0.590888},{"agent":"ROY-02","amount":"1.50N","score_norm":0.582577},{"agent":"ROY-03","amount":"1.55N","score_norm":0.574666},{"agent":"ROY-04","amount":"1.60N","score_norm":0.560554},{"agent":"ROY-05","amount":"1.65N","score_norm":0.554044},{"agent":"ROY-06","amount":"1.70N","score_norm":0.547333},{"agent":"ROY-07","amount":"1.75N","score_norm":0.530221},{"agent":"ROY-08","amount":"2.00N","score_norm":0.611069},{"agent":"ROY-09","amount":"2.04N","score_norm":0.59669},{"agent":"ROY-10","amount":"2.08N","score_norm":0.58231},{"agent":"ROY-11","amount":"2.12N","score_norm":0.567929},{"agent":"ROY-12","amount":"2.16N","score_norm":0.553551},{"agent":"ROY-13","amount":"2.20N","score_norm":0.53917},{"agent":"ROY-14","amount":"1.75N","score_norm":0.583332},{"agent":"ROY-15","amount":"1.81N","score_norm":0.572777},{"agent":"ROY-16","amount":"1.87N","score_norm":0.562221},{"agent":"ROY-17","amount":"1.93N","score_norm":0.551666},{"agent":"ROY-18","amount":"1.99N","score_norm":0.54111},{"agent":"ROY-19","amount":"2.05N","score_norm":0.530554},{"agent":"ROY-20","amount":"2.11N","score_norm":0.519999}],"winner":"ROY-08","clearing_price":"2.00N"}]};
+
+function normalizeSim(j) {
+  if (!j || typeof j !== "object" || Array.isArray(j)) return null;
+  if (j.ok !== true || !Array.isArray(j.rounds)) return null;
+  var rounds = [];
+  for (var ri = 0; ri < j.rounds.length; ri++) {
+    var r = j.rounds[ri];
+    if (!r || typeof r !== "object") return null;
+    var bids = Array.isArray(r.bids) ? r.bids.map(function (b) {
+      if (!b || typeof b !== "object") return null;
+      var s = Number(b.score_norm);
+      return {
+        agent: typeof b.agent === "string" ? b.agent : "?",
+        amount: b.amount != null ? String(b.amount) : "—",
+        score: Number.isFinite(s) ? Math.max(0, Math.min(1, s)) : null
+      };
+    }).filter(Boolean) : [];
+    rounds.push({
+      round: Number.isFinite(Number(r.round)) ? Number(r.round) : 0,
+      lot: typeof r.lot === "string" ? r.lot : "—",
+      bids: bids,
+      winner: typeof r.winner === "string" ? r.winner : null,
+      clearing: r.clearing_price != null ? String(r.clearing_price) : null
+    });
+  }
+  rounds.sort(function (a, b) { return a.round - b.round; });
+  return {
+    generated_at: typeof j.generated_at === "string" ? j.generated_at : null,
+    rounds: rounds
+  };
+}
+
+function tone(score) {
+  if (score == null) return "dim";
+  if (score >= 0.8) return "done";
+  if (score >= 0.4) return "working";
+  return "blocked";
+}
+
+function el(tag, cls, text) {
+  var n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+function buildCard(r) {
+  var card = el("div", "card");
+  var head = el("div", "card-head");
+  head.appendChild(el("span", "round", "Round " + r.round));
+  head.appendChild(el("span", "lot", r.lot));
+  head.appendChild(el("span", "count", r.bids.length + " bids"));
+  card.appendChild(head);
+
+  var rows = el("div", "rows");
+  var bids = r.bids.slice(0, 20);
+  bids.forEach(function (b, i) {
+    var row = el("div", "row");
+    row.appendChild(el("span", "idx", String(i + 1)));
+    var agent = el("span", "agent", b.agent + (b.agent === r.winner ? " ★" : ""));
+    if (b.agent === r.winner) agent.classList.add("win");
+    row.appendChild(agent);
+    var bar = el("div", "bar");
+    var fill = el("i", tone(b.score));
+    fill.style.width = (b.score == null ? 0 : Math.max(0, Math.min(100, b.score * 100))) + "%";
+    bar.appendChild(fill);
+    row.appendChild(bar);
+    var score = el("span", "score", b.score == null ? "—" : b.score.toFixed(2));
+    score.style.color = "var(--" + tone(b.score) + ")";
+    row.appendChild(score);
+    row.appendChild(el("span", "amount", b.amount));
+    rows.appendChild(row);
+  });
+  card.appendChild(rows);
+
+  var foot = el("div", "card-foot");
+  foot.appendChild(el("div", "flex"));
+  var win = el("div", "chip");
+  win.appendChild(el("span", "k", "winner"));
+  var winV = el("span", "v win", r.winner || "—");
+  win.appendChild(winV); foot.appendChild(win);
+  if (r.clearing != null) {
+    var cl = el("div", "chip");
+    cl.appendChild(el("span", "k", "clearing"));
+    var clV = el("span", "v clear", r.clearing);
+    cl.appendChild(clV); foot.appendChild(cl);
+  }
+  card.appendChild(foot);
+  return card;
+}
+
+function render(sim) {
+  var list = document.getElementById("list");
+  list.textContent = "";
+  var live = sim != null;
+  document.getElementById("badge").textContent = live ? "LIVE SIM" : "NO SIM";
+  document.getElementById("badge").classList.toggle("on", live);
+
+  if (!live) {
+    var empty = el("div", "empty");
+    empty.appendChild(el("div", "big", "sim JSON: no rounds yet"));
+    empty.appendChild(el("code", null, SAMPLE_PATH));
+    list.appendChild(empty);
+    return;
+  }
+
+  var rounds = sim.rounds.slice(0, 20);
+  var total = 0;
+  rounds.forEach(function (r) { total += r.bids.length; });
+  var avg = rounds.length ? total / rounds.length : 0;
+
+  document.getElementById("roundsStat").textContent = rounds.length + " rounds";
+  document.getElementById("avgStat").textContent = avg.toFixed(1) + " avg bids";
+  document.getElementById("genStat").textContent =
+    sim.generated_at ? "generated " + sim.generated_at : "";
+
+  rounds.forEach(function (r) { list.appendChild(buildCard(r)); });
+}
+
+function setSource(kind) {
+  document.getElementById("srcLine").textContent =
+    kind === "inline" ? "embedded sample (file://, fetch blocked by CORS) · " + SAMPLE_PATH
+    : kind === "http" ? "fetched docs/demo/" + SAMPLE_PATH
+    : "waiting for " + SAMPLE_PATH;
+}
+
+function load() {
+  fetch(SAMPLE_PATH).then(function (r) {
+    if (!r.ok) throw new Error("http " + r.status);
+    return r.json();
+  }).then(function (j) {
+    var sim = normalizeSim(j);
+    if (!sim || !sim.rounds.length) throw new Error("bad shape");
+    setSource("http"); render(sim);
+  }).catch(function () {
+    var sim = normalizeSim(INLINE_SAMPLE);
+    if (sim && sim.rounds.length) { setSource("inline"); render(sim); }
+    else { setSource("wait"); render(null); }
+  });
+}
+
+load();
+setInterval(load, POLL_MS);
+document.getElementById("refresh").addEventListener("click", load);
+</script>
+</body>
+</html>

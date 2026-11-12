@@ -1,0 +1,114 @@
+{
+  "ok": true,
+  "generated_at": "2026-11-08T21:51:03.588Z",
+  "rounds": [
+    {
+      "round": 1,
+      "lot": "LOT-SIM-001",
+      "bids": [
+        {
+          "agent": "ROY-01",
+          "amount": "1.45N",
+          "score_norm": 0.590888
+        },
+        {
+          "agent": "ROY-02",
+          "amount": "1.50N",
+          "score_norm": 0.582577
+        },
+        {
+          "agent": "ROY-03",
+          "amount": "1.55N",
+          "score_norm": 0.574666
+        },
+        {
+          "agent": "ROY-04",
+          "amount": "1.60N",
+          "score_norm": 0.560554
+        },
+        {
+          "agent": "ROY-05",
+          "amount": "1.65N",
+          "score_norm": 0.554044
+        },
+        {
+          "agent": "ROY-06",
+          "amount": "1.70N",
+          "score_norm": 0.547333
+        },
+        {
+          "agent": "ROY-07",
+          "amount": "1.75N",
+          "score_norm": 0.530221
+        },
+        {
+          "agent": "ROY-08",
+          "amount": "2.00N",
+          "score_norm": 0.611069
+        },
+        {
+          "agent": "ROY-09",
+          "amount": "2.04N",
+          "score_norm": 0.59669
+        },
+        {
+          "agent": "ROY-10",
+          "amount": "2.08N",
+          "score_norm": 0.58231
+        },
+        {
+          "agent": "ROY-11",
+          "amount": "2.12N",
+          "score_norm": 0.567929
+        },
+        {
+          "agent": "ROY-12",
+          "amount": "2.16N",
+          "score_norm": 0.553551
+        },
+        {
+          "agent": "ROY-13",
+          "amount": "2.20N",
+          "score_norm": 0.53917
+        },
+        {
+          "agent": "ROY-14",
+          "amount": "1.75N",
+          "score_norm": 0.583332
+        },
+        {
+          "agent": "ROY-15",
+          "amount": "1.81N",
+          "score_norm": 0.572777
+        },
+        {
+          "agent": "ROY-16",
+          "amount": "1.87N",
+          "score_norm": 0.562221
+        },
+        {
+          "agent": "ROY-17",
+          "amount": "1.93N",
+          "score_norm": 0.551666
+        },
+        {
+          "agent": "ROY-18",
+          "amount": "1.99N",
+          "score_norm": 0.54111
+        },
+        {
+          "agent": "ROY-19",
+          "amount": "2.05N",
+          "score_norm": 0.530554
+        },
+        {
+          "agent": "ROY-20",
+          "amount": "2.11N",
+          "score_norm": 0.519999
+        }
+      ],
+      "winner": "ROY-08",
+      "clearing_price": "2.00N"
+    }
+  ]
+}
