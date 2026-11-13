@@ -113,6 +113,16 @@ near view "$MKT" get_escrow --args '{}' --networkId testnet
 near view "$MKT" get_agent --args "{\"account\":\"$AGT\"}" --networkId testnet
 ```
 
+On Windows PowerShell the JSON argument must keep its quotes:
+`--args '{\"lot_id\":\"roy-1794159209212\"}'` — bare double quotes are stripped
+by the native-argument parser before near-cli sees them. The bundled script
+does the whole read-only check of the recorded auction in one run (near-cli 4.x
+on PATH, no signing, no transactions, exit code non-zero on any mismatch):
+
+```bash
+powershell -ExecutionPolicy Bypass -File contracts/hivebid_market/integration/verify-onchain.ps1
+```
+
 The deployed instance additionally exposes the score of every bid of a lot as
 the read-only view `get_bid_scores`:
 
