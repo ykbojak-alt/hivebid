@@ -6,7 +6,7 @@
 node contracts/hivebid_market/integration/sim-swarm.js --dry --out ./sim-swarm.json
 ```
 
-**dry-run: real scoring math, no funds needed, judges can run with `--dry`.** The simulator uses fixed scripted data for 20 bidder profiles; it makes no LLM, RPC, wallet, sandbox, or transaction calls. The default output path is `D:/Temp/sim-swarm.json`; `--out` makes the destination portable.
+**dry-run: real scoring math, no funds needed, judges can run with `--dry`.** The simulator uses fixed scripted data for 20 bidder profiles; it makes no LLM, RPC, wallet, sandbox, or transaction calls. The default output path is `sim-swarm.json` in the current directory (`HIVEBID_SIM_OUTPUT` overrides it); `--out` sets the destination explicitly.
 
 The dry flow is `create_task` → 20 unique `submit_bid` calls → `close_bidding` → `get_bid_scores` → `award_best`. `close_bidding` is required by the contract before `award_best`. Prices, rating samples, and ETAs are synthetic fixtures, while the score uses integer arithmetic and the contract weights (0.4 price, 0.4 rating, 0.2 ETA; SCALE 1,000,000). The dry result is not a live-chain response.
 
